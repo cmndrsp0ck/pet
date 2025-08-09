@@ -78,7 +78,17 @@ func filter(options []string, tag string) (commands []string, err error) {
 	// If only one line is selected, search for params in the command
 	if len(lines) == 1 {
 		snippetInfo := snippetTexts[lines[0]]
-		params = dialog.SearchForParams(snippetInfo.Command)
+		// Check if snippet is static (parameter expansion disabled)
+		isStatic := false
+		if snippetInfo.Static != nil {
+			isStatic = *snippetInfo.Static
+		}
+
+		if !isStatic {
+			params = dialog.SearchForParams(snippetInfo.Command)
+		} else {
+			params = nil
+		}
 	} else {
 		params = nil
 	}
