@@ -284,3 +284,102 @@ func TestInsertParams_EqualsInDefaultValueIgnored(t *testing.T) {
 		t.Fatalf("got %s, want %s", got, want)
 	}
 }
+
+// Test escape functionality
+func TestSearchForParams_WithEscapedParams(t *testing.T) {
+	command := "<a=1> \\<b=2\\> <c=3>"
+
+	want := [][2]string{
+		{"a", "1"},
+		{"c", "3"},
+	}
+
+	got := SearchForParams(command)
+
+	if diff := deep.Equal(want, got); diff != nil {
+		t.Fatal(diff)
+	}
+}
+
+func TestSearchForParams_WithEscapedParamsOnly(t *testing.T) {
+	command := "\\<a=1\\> \\<b=2\\>"
+
+	got := SearchForParams(command)
+
+	if got != nil {
+		t.Fatalf("wanted nil, got '%v'", got)
+	}
+}
+
+func TestSearchForParams_WithPartialEscape(t *testing.T) {
+	command := "\\<a=1> <b=2\\>"
+
+	// Should find both a=1 and b=2\ since neither is fully escaped
+	// (a=1 is missing trailing \, b=2\ is missing leading \)
+	want := [][2]string{
+		{"a", "1"},
+		{"b", "2\\"},
+	}
+
+	got := SearchForParams(command)
+
+	if diff := deep.Equal(want, got); diff != nil {
+		t.Fatal(diff)
+	}
+}
+
+func TestInsertParams_WithEscapedParams(t *testing.T) {
+	command := "<a=1> \\<b=literal\\> <c=3>"
+
+	params := map[string]string{
+		"a": "replaced_a",
+		"c": "replaced_c",
+	}
+
+	got := insertParams(command, params)
+	want := "replaced_a <b=literal> replaced_c"
+
+	if got != want {
+		t.Fatalf("got %s, want %s", got, want)
+	}
+}
+
+func TestInsertParams_WithOnlyEscapedParams(t *testing.T) {
+	command := "\\<a=literal\\> \\<b=also_literal\\>"
+
+	params := map[string]string{}
+
+	got := insertParams(command, params)
+	want := "<a=literal> <b=also_literal>"
+
+	if got != want {
+		t.Fatalf("got %s, want %s", got, want)
+	}
+}
+
+func TestRemoveEscapeChars(t *testing.T) {
+	command := "echo \\<hello\\> world \\<foo\\>"
+
+	got := removeEscapeChars(command)
+	want := "echo <hello> world <foo>"
+
+	if got != want {
+		t.Fatalf("got %s, want %s", got, want)
+	}
+}
+
+func TestInsertParams_MixedEscapedAndNormal(t *testing.T) {
+	command := "curl -X POST <host>/api \\<version=v1\\> -d '<data>'"
+
+	params := map[string]string{
+		"host": "localhost:8080",
+		"data": "test_payload",
+	}
+
+	got := insertParams(command, params)
+	want := "curl -X POST localhost:8080/api <version=v1> -d 'test_payload'"
+
+	if got != want {
+		t.Fatalf("got %s, want %s", got, want)
+	}
+}
